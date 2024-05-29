@@ -10,7 +10,16 @@ cat $command_path | ssh -T $host /bin/bash $VERBOSE_FLAG $REMOTE_DEBUG_FLAG
 - The `sheploy` command supports `--dry-run`, and it is advised to use it.
 - The deployments are expected to be in `~/deploys` but it can be changed using `--deploys-dir` option. See `sheploy --help` for other options.
 - In the [deploys](deplys) directory is an example configuration, neither the layout, nor the tasks scripts are supposed to be used out-of-the-box. This is not a cookbook of receipts.
- 
+
+### Installation
+
+Install only on management node:
+
+```sh
+git clone git@github.com:brablc/sheploy /usr/local/lib/sheploy
+ln -s /usr/local/lib/sheploy/bin/sheploy /usr/local/sbin/
+```
+
 ### Example deploys
 
 The example is demonstrated using:
