@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+RELAY="10.0.0.1"
+
+postconf -e 'myhostname = $HOSTNAME.example.com'
+postconf -e 'relayhost = [$RELAY]'
+postconf -e 'inet_interfaces = loopback-only'
+postconf -e 'mydestination ='
+
+systemctl restart postfix

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+test ! -x /usr/local/bin/lazydocker || exit
+
+curl -s https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | DIR=/usr/local/bin bash -

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+docker swarm init --advertise-addr 10.0.0.1 --default-addr-pool 10.40.0.0/16 --default-addr-pool-mask-length 24
+docker network create --driver=overlay --attachable --subnet=10.40.1.0/24 edge
+docker network create --driver=overlay --attachable --subnet=10.40.2.0/24 web
+
+echo "*** JOIN CLUSTER FROM NODES ***"

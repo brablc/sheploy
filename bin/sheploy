@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+SCRIPT_NAME=${0##*/}
+SCRIPT_PATH=$(readlink -f $0)
+source "${SCRIPT_PATH%/*}/logger.sh"
+
+DEPLOYS=~/deploys
+CONFIG_TYPES=(files tasks)
+
+function usage() {
+    exec 2<&1
+    cat >&2 << __USAGE
+Usage: $SCRIPT_NAME [--help] [-v|--verbose] [-n|--dry-run] [-x|--remote-debug] [-D|--deploys-dir=$DEPLOYS] [-t|--config-type=files|tasks] [-p|--numeric-prefix=N] [--collect-files] [-h|--host-prefix=HOST]
+
+The tasks will be executed in the numeric order, even when mixing tasks from different roles.
+
+Options:
+
+  -p, --numeric-prefix - use to run different stages of deployment, switches config type to task
+  --collect-files      - copies changed files back, use git to check chnages
+  -x, --remote-debug   - executes the taks with bash -x
+
+Example:
+
+  $SCRIPT_NAME --dry-run --config-type=files # show available files
+  $SCRIPT_NAME --dry-run --host-prefix=cb-wrk       # full setup of all matching hosts
+
+__USAGE
+
+    exit 1
+}
+
+VERBOSE_FLAG=""
+DRY_RUN_FLAG=""
+REMOTE_DEBUG_FLAG=""
+NUMERIC_PREFIX=""
+COLLECT_FILES=0
+HOSTS=()
+
+OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,numeric-prefix:,collect-files,host-prefix:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
+test $? -eq 0 || usage
+eval set -- "$OPTIONS"
+while true; do
+    case $1 in
+        --help )
+            usage
+            ;;
+        -v|--verbose )
+            VERBOSE_FLAG='-v'
+            ;;
+        -n|--dry-run )
+            DRY_RUN_FLAG='--dry-run'
+            ;;
+        -x|--remote-debug )
+            REMOTE_DEBUG_FLAG='-x'
+            ;;
+        -D | --deploys-dir )
+            shift
+            DEPLOYS=$1
+            ;;
+        -c | --config-type )
+            shift
+            CONFIG_TYPES=($1)
+            ;;
+        -p | --numeric-prefix )
+            shift
+            NUMERIC_PREFIX="$1\d*-"
+            CONFIG_TYPES=(tasks)
+            ;;
+        --collect-files )
+            COLLECT_FILES=1
+            ;;
+        -h | --host-prefix )
+            shift
+            HOSTS=($(ls -1 $DEPLOYS/hosts | grep -P "^$1" ))
+            ;;
+        -- )
+            shift
+            break
+            ;;
+    esac
+    shift
+done
+
+test $# -eq 0 || usage
+
+if [[ ${#HOSTS[@]} == 0 ]]; then
+    HOSTS=($(ls -1 "$DEPLOYS/hosts"))
+fi
+test -d $DEPLOYS || ( log_error "Missing $DEPLOYS directory." && exit 1 )
+
+HOST_DIR="$DEPLOYS/hosts"
+
+function get_config_items() {
+    local host config_type
+    host=$1
+    config_type=$2
+    find -L $HOST_DIR/$host -mindepth 1 -path "*/$config_type*/*" -type f -printf '%P\n' | sort -V -k2 -t/
+}
+
+function deploy_host() {
+    local host config_type
+    host=$1
+
+    for config_type in ${CONFIG_TYPES[@]}; do
+
+        if [[ $config_type == 'files' ]]; then
+            log_info "$host|Deploying files ..."
+            while IFS=/ read dir real_path; do
+                local local_path="$HOST_DIR/$host/$dir/$real_path"
+                real_path="/$real_path"
+                log_info "$host|$real_path ..."
+                test -n "$DRY_RUN_FLAG" && continue
+                rsync -ai $VERBOSE_FLAG $DRY_RUN_FLAG --copy-links $local_path $host:$real_path
+            done  < <(get_config_items $host files)
+        fi
+
+        if [[ $config_type == 'tasks' ]]; then
+            log_info "$host|Running tasks ..."
+            while read command; do
+                log_info "$host|$command"
+                test -n "$DRY_RUN_FLAG" && continue
+                cat $HOST_DIR/$host/$command | ssh -T $host /bin/bash $VERBOSE_FLAG $REMOTE_DEBUG_FLAG
+                local exit_code=$?
+                if [[ $exit_code != 0 ]]; then
+                    log_error "Command failed with $exit_code exit code. Local file $HOST_DIR/$host/$command"
+                fi
+            done  < <(get_config_items $host tasks | grep -P "/$NUMERIC_PREFIX")
+        fi
+
+    done
+
+}
+
+function collect_files() {
+    local host
+    host=$1
+
+    while IFS=/ read dir real_path; do
+        local local_path="$HOST_DIR/$host/$dir/$real_path"
+        real_path="/$real_path"
+        log_info "$host|Checking file|$real_path ..."
+        test -n "$DRY_RUN_FLAG" && continue
+
+        read local_md5 name < <(md5sum $local_path)
+        read remote_md5 name < <(ssh -T $host md5sum $real_path)
+        if [[ $local_md5 != $remote_md5 ]]; then
+            log_info "$host|File differs, copying content|$real_path"
+            ssh -T $host cat $real_path > $local_path
+        fi
+    done  < <(get_config_items $host files)
+}
+
+if (( $COLLECT_FILES )); then
+    for HOST in ${HOSTS[@]}; do
+        collect_files $HOST
+    done
+
+    exit
+fi
+
+for HOST in ${HOSTS[@]}; do
+    log_info "Deploying $HOST ..."
+    deploy_host $HOST
+done

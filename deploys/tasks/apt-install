@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+PACKAGES=(
+  ack
+  build-essential
+  btop
+  debconf-utils
+  docker.io
+  htop
+  jq
+  mc
+  moreutils
+  multitail
+  ncdu
+  neovim
+  nmap
+  sysstat
+)
+
+for pkg in ${PACKAGES[@]}; do
+  dpkg -l | grep -qw $pkg || echo $pkg
+done | xargs -r apt-get install -y

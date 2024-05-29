@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+test -x /usr/sbin/postfix && exit
+
+export DEBIAN_FRONTEND="noninteractive"
+cat <<-__CONF | debconf-set-selections
+    postfix postfix/main_mailer_type select Internet Site
+    postfix postfix/mailname string example.com
+    postfix postfix/destinations string example.com
+__CONF
+
+apt-get install -y postfix

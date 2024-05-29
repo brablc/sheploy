@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+test ! -f /usr/local/lib/bash-git-prompt/gitprompt.sh || exit
+
+git clone https://github.com/magicmonty/bash-git-prompt.git /usr/local/lib/bash-git-prompt --depth=1

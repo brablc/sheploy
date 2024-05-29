@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+sed -E 's/ENABLED="true"/ENABLED="false"/' -i /etc/default/sysstat
+
+mkdir -p /etc/systemd/system/sysstat-collect.service.d
+cat << EOF > /etc/systemd/system/sysstat-collect.service.d/override.conf
+[Service]
+ExecStart=
+ExecStart=/usr/lib/sysstat/sa1 1 600
+StandardOutput=null
+EOF
+
+sudo mkdir -p /etc/systemd/system/sysstat-collect.timer.d
+cat << EOF | sudo tee /etc/systemd/system/sysstat-collect.timer.d/override.conf
+[Timer]
+OnCalendar=
+OnCalendar=*:00/10
+EOF
+
+systemctl daemon-reload
+systemctl enable --now sysstat
+systemctl restart sysstat-collect.timer
+systemctl restart sysstat-summary.timer

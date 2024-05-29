@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+test ! -x /root/swarm/bin/dockerize || exit
+
+DOCKERIZE_VERSION=v0.7.0
+curl -s -L https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz | tar xzf - -C /root/swarm/bin
+chmod a+rx /root/swarm/bin/dockerize
+rsync -ai --delete-after /root/swarm/bin/ /var/lib/swarm/bin/
