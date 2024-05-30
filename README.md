@@ -1,16 +1,12 @@
 # sheploy
 
-Shell deploy - KISS, multi-stage deployment suitable for docker swarm.
+Shell deploy - KISS, multi-stage, multi-host, muti-role deployment suitable for preparations of nodes used for Docker Swarm.
 
-- Tasks are simple bash scripts, that will get executed like this:
-```sh
-cat $command_path | ssh -T $host /bin/bash $VERBOSE_FLAG $REMOTE_DEBUG_FLAG
-```
-- It is supposed ssh connection is tested before running `sheploy`.
+- There is no configuration file, just couple of directories, task scripts and a lot of symlinks.
+- Tasks scripts are simple bash scripts executed over ssh in proper order.
 - The `sheploy` command supports `--dry-run` (shoert `-n`), and it is advised to use it.
-- The deployments are expected to be in `~/deploys` but it can be changed using `--deploys-dir` option. See `sheploy --help` for other options.
+- The deployments are expected to be in `~/deploys` directory but it can be changed using `--deploys-dir` option. See `sheploy --help` for other options.
 - In the [deploys](deploys) directory is an example configuration, neither the layout, nor the tasks scripts are supposed to be used out-of-the-box. This is not a cookbook of receipts.
-
 
 ### Installation
 
@@ -19,6 +15,12 @@ Install only on management node:
 ```sh
 git clone git@github.com:brablc/sheploy /usr/local/lib/sheploy
 ln -s /usr/local/lib/sheploy/bin/sheploy /usr/local/sbin/
+
+# Create basic directory structure:
+sheploy init
+
+# Add management code to any role
+sheploy link-role swarm-mng any
 ```
 
 ### Example deploys
@@ -50,13 +52,13 @@ Please watch the comments:
       ▶ tasks-any
       ▶ tasks-wrk
   ▼ roles                         # if you have multiple hosts with same deployment use roles
-    ▼ any/tasks                   # host can have multiple roles
+    ▼ any/tasks-any               # host can have multiple roles
       ~ 010-apt-update
       ~ 011-apt-install
       ~ 020-postfix
       ~ 020-sysstat
       ~ 020-zellij
-    ▼ wrk/tasks
+    ▼ wrk/tasks-any
       ~ 030-postfix-relay
   ▼ tasks                         # all the tasks above can be symlinked to a common folder or they may have script directly
     - apt-install
