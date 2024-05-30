@@ -11,21 +11,30 @@ CONFIG_TYPES=(files tasks)
 function usage() {
     exec 2<&1
     cat >&2 << __USAGE
-Usage: $SCRIPT_NAME [--help] [-v|--verbose] [-n|--dry-run] [-x|--remote-debug] [-D|--deploys-dir=$DEPLOYS] [-t|--config-type=files|tasks] [-p|--numeric-prefix=N] [--collect-files] [-h|--host-prefix=HOST]
+Usage: $SCRIPT_NAME [--help] [-v|--verbose] [-n|--dry-run] [-x|--remote-debug] [-D|--deploys-dir=$DEPLOYS] [-t|--config-type=files|tasks] [-p|--prefix=N] [--collect-files] [-h|--host-prefix=HOST]
 
-The tasks will be executed in the numeric order, even when mixing tasks from different roles.
+The tasks from all sources get sorted and then executed, use numeric prefixes to create stages.
 
 Options:
 
-  -p, --numeric-prefix - use to run different stages of deployment, switches config type to task
-  --collect-files      - copies changed files back, use git to check chnages
-  -x, --remote-debug   - executes the taks with bash -x
+  -p, --prefix        - use to run different stages of deployment, switches config type to task
+  --collect-files     - copies changed files back, use git to check chnages
+  -x, --remote-debug  - executes the taks with bash -x
 
 Example:
 
-  $SCRIPT_NAME --dry-run --config-type=files # show available files
-  $SCRIPT_NAME --dry-run --host-prefix=cb-wrk       # full setup of all matching hosts
+  # Naming tasks
+  010-apt-update
+  011-apt-install
+  410-backup-etc
+  420-backup-var
 
+  # Executing tasks
+  $SCRIPT_NAME --dry-run                      # show complete deployments
+  $SCRIPT_NAME --dry-run --config-type=files  # show available files
+  $SCRIPT_NAME --dry-run --host-prefix=cb-wrk # full setup of all matching hosts
+
+  $SCRIPT_NAME --dry-run --prefix=01          # run all tasks with prefix 01
 __USAGE
 
     exit 1
@@ -34,11 +43,11 @@ __USAGE
 VERBOSE_FLAG=""
 DRY_RUN_FLAG=""
 REMOTE_DEBUG_FLAG=""
-NUMERIC_PREFIX=""
+PREFIX=""
 COLLECT_FILES=0
 HOSTS=()
 
-OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,numeric-prefix:,collect-files,host-prefix:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
+OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,prefix:,collect-files,host-prefix:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
 test $? -eq 0 || usage
 eval set -- "$OPTIONS"
 while true; do
@@ -63,9 +72,9 @@ while true; do
             shift
             CONFIG_TYPES=($1)
             ;;
-        -p | --numeric-prefix )
+        -p | --prefix )
             shift
-            NUMERIC_PREFIX="$1\d*-"
+            PREFIX="$1"
             CONFIG_TYPES=(tasks)
             ;;
         --collect-files )
@@ -127,7 +136,7 @@ function deploy_host() {
                 if [[ $exit_code != 0 ]]; then
                     log_error "Command failed with $exit_code exit code. Local file $HOST_DIR/$host/$command"
                 fi
-            done  < <(get_config_items $host tasks | grep -P "/$NUMERIC_PREFIX")
+            done  < <(get_config_items $host tasks | grep -P "/$PREFIX")
         fi
 
     done
