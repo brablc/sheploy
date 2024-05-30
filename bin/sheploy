@@ -110,7 +110,7 @@ function deploy_host() {
                 local local_path="$HOST_DIR/$host/$dir/$real_path"
                 real_path="/$real_path"
                 log_info "$host|$real_path ..."
-                test -n "$DRY_RUN_FLAG" && continue
+                test -n "$DRY_RUN_FLAG" && echo "$local_path" && continue
                 rsync -ai $VERBOSE_FLAG $DRY_RUN_FLAG --copy-links $local_path $host:$real_path
             done  < <(get_config_items $host files)
         fi
@@ -118,9 +118,10 @@ function deploy_host() {
         if [[ $config_type == 'tasks' ]]; then
             log_info "$host|Running tasks ..."
             while read command; do
+                local local_path="$HOST_DIR/$host/$command"
                 log_info "$host|$command"
-                test -n "$DRY_RUN_FLAG" && continue
-                cat $HOST_DIR/$host/$command | ssh -T $host /bin/bash $VERBOSE_FLAG $REMOTE_DEBUG_FLAG
+                test -n "$DRY_RUN_FLAG" && echo "$local_path" && continue
+                cat $local_path | ssh -T $host /bin/bash $VERBOSE_FLAG $REMOTE_DEBUG_FLAG
                 local exit_code=$?
                 if [[ $exit_code != 0 ]]; then
                     log_error "Command failed with $exit_code exit code. Local file $HOST_DIR/$host/$command"
