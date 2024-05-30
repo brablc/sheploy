@@ -2,6 +2,7 @@
 
 SCRIPT_NAME=${0##*/}
 SCRIPT_PATH=$(readlink -f $0)
+LOGGER_USE_TS=1
 source "${SCRIPT_PATH%/*}/logger.sh"
 
 DEPLOYS=~/deploys
