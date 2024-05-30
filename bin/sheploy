@@ -29,7 +29,7 @@ Options:
 Commands:
   deploy                  default command
   collect                 copy changed files back, TIP: use git to check chnages
-  scaffolding             create scaffolding directory structure
+  init                    create scaffold of deploy directory structure
   link-role HOST ROLE     link a role to the host
 
 Example:
@@ -170,7 +170,7 @@ if [[ $1 == "collect" ]]; then
     exit
 fi
 
-if [[ $1 == "scaffolding" ]]; then
+if [[ $1 == "init" ]]; then
     test $# -eq 1 || usage
 
     mkdir -p $DEPLOYS
