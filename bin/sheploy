@@ -11,15 +11,26 @@ CONFIG_TYPES=(files tasks)
 function usage() {
     exec 2<&1
     cat >&2 << __USAGE
-Usage: $SCRIPT_NAME [--help] [-v|--verbose] [-n|--dry-run] [-x|--remote-debug] [-D|--deploys-dir=$DEPLOYS] [-t|--config-type=files|tasks] [-p|--prefix=N] [--collect-files] [-h|--host-prefix=HOST]
+Usage: $SCRIPT_NAME [OPTION] [CMD]
 
 The tasks from all sources get sorted and then executed, use numeric prefixes to create stages.
 
 Options:
 
-  -p, --prefix        - use to run different stages of deployment, switches config type to task
-  --collect-files     - copies changed files back, use git to check chnages
-  -x, --remote-debug  - executes the taks with bash -x
+  --help                  this help
+  --verbose, -v           verbose mode
+  --dry-run, -n           do not execute, use to list files and scripts
+  --deploys-dir=DIR, -D   use other deploys DIR than $DEPLOYS
+  --config-type=TYPE, -t  one of 'files' or 'tasks', when using prefix, tasks are assumed
+  --prefix=STR, -p        only execute scripts matching the given prefix
+  --host-filter=GREP, -h  only run on hosts matching the 'grep -P' filter
+  --remote-debug, -x      execute tasks with bash -x
+
+Commands:
+  deploy                  default command
+  collect                 copy changed files back, TIP: use git to check chnages
+  scaffolding             create scaffolding directory structure
+  link-role HOST ROLE     link a role to the host
 
 Example:
 
@@ -32,7 +43,7 @@ Example:
   # Executing tasks
   $SCRIPT_NAME --dry-run                      # show complete deployments
   $SCRIPT_NAME --dry-run --config-type=files  # show available files
-  $SCRIPT_NAME --dry-run --host-prefix=cb-wrk # full setup of all matching hosts
+  $SCRIPT_NAME --dry-run --host-filter=cb-wrk # full setup of all matching hosts
 
   $SCRIPT_NAME --dry-run --prefix=01          # run all tasks with prefix 01
 __USAGE
@@ -44,10 +55,9 @@ VERBOSE_FLAG=""
 DRY_RUN_FLAG=""
 REMOTE_DEBUG_FLAG=""
 PREFIX=""
-COLLECT_FILES=0
 HOSTS=()
 
-OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,prefix:,collect-files,host-prefix:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
+OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,prefix:,host-filter:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
 test $? -eq 0 || usage
 eval set -- "$OPTIONS"
 while true; do
@@ -77,12 +87,9 @@ while true; do
             PREFIX="$1"
             CONFIG_TYPES=(tasks)
             ;;
-        --collect-files )
-            COLLECT_FILES=1
-            ;;
-        -h | --host-prefix )
+        -h | --host-filter )
             shift
-            HOSTS=($(ls -1 $DEPLOYS/hosts | grep -P "^$1" ))
+            HOSTS=($(ls -1 $DEPLOYS/hosts | grep -P "$1" ))
             ;;
         -- )
             shift
@@ -92,14 +99,6 @@ while true; do
     shift
 done
 
-test $# -eq 0 || usage
-
-if [[ ${#HOSTS[@]} == 0 ]]; then
-    HOSTS=($(ls -1 "$DEPLOYS/hosts"))
-fi
-test -d $DEPLOYS || ( log_error "Missing $DEPLOYS directory." && exit 1 )
-
-HOST_DIR="$DEPLOYS/hosts"
 
 function get_config_items() {
     local host config_type
@@ -122,7 +121,7 @@ function deploy_host() {
                 log_info "$host|$real_path ..."
                 test -n "$DRY_RUN_FLAG" && echo "$local_path" && continue
                 rsync -ai $VERBOSE_FLAG $DRY_RUN_FLAG --copy-links $local_path $host:$real_path
-            done  < <(get_config_items $host files)
+            done  < <(get_config_items $host files | grep -v .gitkeep)
         fi
 
         if [[ $config_type == 'tasks' ]]; then
@@ -143,7 +142,7 @@ function deploy_host() {
 
 }
 
-function collect_files() {
+function collect() {
     local host
     host=$1
 
@@ -162,13 +161,50 @@ function collect_files() {
     done  < <(get_config_items $host files)
 }
 
-if (( $COLLECT_FILES )); then
-    for HOST in ${HOSTS[@]}; do
-        collect_files $HOST
-    done
+if [[ $1 == "collect" ]]; then
+    test $# -eq 1 || usage
 
+    for HOST in ${HOSTS[@]}; do
+        collect $HOST
+    done
     exit
 fi
+
+if [[ $1 == "scaffolding" ]]; then
+    test $# -eq 1 || usage
+
+    mkdir -p $DEPLOYS
+    pushd $DEPLOYS 2>&1 >/dev/null
+    mkdir -vp hosts roles/any/{tasks-any,files-any} tasks files
+    popd 2>&1 >/dev/null
+    exit
+fi
+
+if [[ $1 == "link-role" ]]; then
+    test $# -eq 3 || usage
+    shift
+    HOST=$1
+    ROLE=$2
+
+    pushd $DEPLOYS 2>&1 >/dev/null
+    mkdir -pv hosts/$HOST/{tasks,files}
+    test -d roles/$ROLE/tasks-$ROLE && ln -sfv ../../roles/$ROLE/tasks-$ROLE hosts/$HOST/
+    test -d roles/$ROLE/files-$ROLE && ln -sfv ../../roles/$ROLE/files-$ROLE hosts/$HOST/
+    popd 2>&1 >/dev/null
+    exit
+fi
+
+if [[ $1 == "deploy" ]]; then
+    shift
+fi
+test $# -eq 0 || usage
+
+if [[ ${#HOSTS[@]} == 0 ]]; then
+    HOSTS=($(ls -1 "$DEPLOYS/hosts"))
+fi
+test -d $DEPLOYS || ( log_error "Missing $DEPLOYS directory." && exit 1 )
+
+HOST_DIR="$DEPLOYS/hosts"
 
 for HOST in ${HOSTS[@]}; do
     log_info "Deploying $HOST ..."
