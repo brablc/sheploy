@@ -26,9 +26,9 @@ log() {
     fi
 
     if [[ -t 1 || -n $CONTENT_TYPE ]]; then
-        echo -e "${color}-${level:0:1}|${timestamp}${message}${reset}"
+        echo -e "${color}-${level:0:1}|${timestamp}${message}${reset}" >&2
     else
-        echo "-${level:0:1}|${timestamp}${message}"
+        echo "-${level:0:1}|${timestamp}${message}" >&2
     fi
 
     logger -t $SCRIPT_NAME -p user.${level,,} "${level} - ${message}"
