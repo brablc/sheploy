@@ -29,6 +29,7 @@ Options:
 Commands:
   deploy                  default command
   collect                 copy changed files back, TIP: use git to check chnages
+  exec CMD..              execute adhoc command (take advantage of host filter)
   init                    create scaffold of deploy directory structure
   link-role HOST ROLE     link a role to the host
 
@@ -65,20 +66,20 @@ while true; do
         --help )
             usage
             ;;
-        -v|--verbose )
+        -v | --verbose )
             VERBOSE_FLAG='-v'
             ;;
-        -n|--dry-run )
+        -n | --dry-run )
             DRY_RUN_FLAG='--dry-run'
             ;;
-        -x|--remote-debug )
+        -x | --remote-debug )
             REMOTE_DEBUG_FLAG='-x'
             ;;
         -D | --deploys-dir )
             shift
             DEPLOYS=$1
             ;;
-        -c | --config-type )
+        -t | --config-type )
             shift
             CONFIG_TYPES=($1)
             ;;
@@ -99,6 +100,18 @@ while true; do
     shift
 done
 
+if [[ ${#HOSTS[@]} == 0 ]]; then
+    HOSTS=($(ls -1 "$DEPLOYS/hosts"))
+fi
+test -d $DEPLOYS || ( log_error "Missing $DEPLOYS directory." && exit 1 )
+
+HOST_DIR="$DEPLOYS/hosts"
+
+COMMAND="deploy"
+if (( $# )); then
+    COMMAND="$1"
+    shift
+fi
 
 function get_config_items() {
     local host config_type
@@ -161,17 +174,27 @@ function collect() {
     done  < <(get_config_items $host files)
 }
 
-if [[ $1 == "collect" ]]; then
-    test $# -eq 1 || usage
+if [[ $COMMAND == "collect" ]]; then
+    test $# -eq 0 || usage
 
-    for HOST in ${HOSTS[@]}; do
-        collect $HOST
+    for host in ${HOSTS[@]}; do
+        collect $host
     done
     exit
 fi
 
-if [[ $1 == "init" ]]; then
-    test $# -eq 1 || usage
+if [[ $COMMAND == "exec" ]]; then
+
+    for host in ${HOSTS[@]}; do
+        log_info "$host|Exec|${@}"
+        test -n "$DRY_RUN_FLAG" && continue
+        ssh -T $host -- "$@"
+    done
+    exit
+fi
+
+if [[ $COMMAND == "init" ]]; then
+    test $# -eq 0 || usage
 
     mkdir -p $DEPLOYS
     pushd $DEPLOYS 2>&1 >/dev/null
@@ -180,33 +203,28 @@ if [[ $1 == "init" ]]; then
     exit
 fi
 
-if [[ $1 == "link-role" ]]; then
-    test $# -eq 3 || usage
-    shift
-    HOST=$1
-    ROLE=$2
+if [[ $COMMAND == "link-role" ]]; then
+    test $# -eq 2 || usage
+
+    host=$1
+    role=$2
 
     pushd $DEPLOYS 2>&1 >/dev/null
-    mkdir -pv hosts/$HOST/{tasks,files}
-    test -d roles/$ROLE/tasks-$ROLE && ln -sfv ../../roles/$ROLE/tasks-$ROLE hosts/$HOST/
-    test -d roles/$ROLE/files-$ROLE && ln -sfv ../../roles/$ROLE/files-$ROLE hosts/$HOST/
+    mkdir -pv hosts/$host/{tasks,files}
+    test -d roles/$role/tasks-$role && ln -sfv ../../roles/$role/tasks-$role hosts/$host/
+    test -d roles/$role/files-$role && ln -sfv ../../roles/$role/files-$role hosts/$host/
     popd 2>&1 >/dev/null
     exit
 fi
 
-if [[ $1 == "deploy" ]]; then
-    shift
+if [[ $COMMAND == "deploy" ]]; then
+    test $# -eq 0 || usage
+
+    for host in ${HOSTS[@]}; do
+        log_info "Deploying $host ..."
+        deploy_host $host
+    done
 fi
-test $# -eq 0 || usage
 
-if [[ ${#HOSTS[@]} == 0 ]]; then
-    HOSTS=($(ls -1 "$DEPLOYS/hosts"))
-fi
-test -d $DEPLOYS || ( log_error "Missing $DEPLOYS directory." && exit 1 )
-
-HOST_DIR="$DEPLOYS/hosts"
-
-for HOST in ${HOSTS[@]}; do
-    log_info "Deploying $HOST ..."
-    deploy_host $HOST
-done
+log_error "Unknown command $COMMAND"
+exit 1
