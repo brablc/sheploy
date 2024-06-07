@@ -166,10 +166,10 @@ function collect() {
         test -n "$DRY_RUN_FLAG" && continue
 
         read local_md5 name < <(md5sum $local_path)
-        read remote_md5 name < <(ssh -T $host md5sum $real_path)
+        read remote_md5 name < <(ssh -n -T $host md5sum $real_path)
         if [[ $local_md5 != $remote_md5 ]]; then
-            log_info "$host|File differs, copying content|$real_path"
-            ssh -T $host cat $real_path > $local_path
+            log_warn "$host|File differs, copying content|$real_path"
+            ssh -n -T $host cat $real_path > $local_path
         fi
     done  < <(get_config_items $host files)
 }
@@ -224,6 +224,7 @@ if [[ $COMMAND == "deploy" ]]; then
         log_info "Deploying $host ..."
         deploy_host $host
     done
+    exit
 fi
 
 log_error "Unknown command $COMMAND"
