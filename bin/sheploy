@@ -58,7 +58,7 @@ REMOTE_DEBUG_FLAG=""
 PREFIX=""
 HOSTS=()
 
-OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,prefix:,host-filter:' -n "$0" -- 'vnxD:c:p:h:' "$@")"
+OPTIONS="$(getopt --long 'help,verbose,dry-run,remote-debug,deploys-dir,config-type:,prefix:,host-filter:' -n "$0" -- 'vnxD:t:p:h:' "$@")"
 test $? -eq 0 || usage
 eval set -- "$OPTIONS"
 while true; do
