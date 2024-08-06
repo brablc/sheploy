@@ -3,25 +3,10 @@
 Shell deploy - KISS, multi-stage, multi-host, muti-role deployment suitable for preparations of nodes used for Docker Swarm.
 
 - There is no configuration file, just couple of directories, task scripts and a lot of symlinks.
-- Tasks scripts are simple bash scripts executed over ssh in proper order.
-- The `sheploy` command supports `--dry-run` (shoert `-n`), and it is advised to use it.
+- Tasks scripts are simple bash scripts executed over SSH in proper order.
+- The `sheploy` command supports `--dry-run` (short `-n`), and it is advised to use it.
 - The deployments are expected to be in `~/deploys` directory but it can be changed using `--deploys-dir` option. See `sheploy --help` for other options.
-- In the [deploys](deploys) directory is an example configuration, neither the layout, nor the tasks scripts are supposed to be used out-of-the-box. This is not a cookbook of receipts.
-
-### Installation
-
-Install only on management node:
-
-```sh
-git clone git@github.com:brablc/sheploy /usr/local/lib/sheploy
-ln -s /usr/local/lib/sheploy/bin/sheploy /usr/local/sbin/
-
-# Create basic directory structure:
-sheploy init
-
-# Add management code to any role
-sheploy link-role swarm-mng any
-```
+- In the [deploys](deploys) directory is an example configuration - neither the layout, nor the tasks scripts are supposed to be used out-of-the-box. This is not a cookbook of receipts.
 
 ### Example deploys
 
@@ -30,6 +15,19 @@ The example is demonstrated using:
 - one manager node (`swarm-mng`),
 - two worker nodes (`swarm-wrk1`, `swarm-wrk2`),
 - two roles `any` used by all hosts and `wrk` used by worker nodes.
+
+Install only on your management node:
+
+```sh
+git clone git@github.com:brablc/sheploy /usr/local/lib/sheploy
+ln -s /usr/local/lib/sheploy/bin/sheploy /usr/local/sbin/
+
+# Create basic directory structure:
+sheploy init
+
+# Assing 'any' role to management node.
+sheploy link-role swarm-mng any
+```
 
 Please watch the comments:
 
@@ -58,7 +56,7 @@ Please watch the comments:
       ~ 020-postfix
       ~ 020-sysstat
       ~ 020-zellij
-    ▼ wrk/tasks-any
+    ▼ wrk/tasks-wrk
       ~ 030-postfix-relay
   ▼ tasks                         # all the tasks above can be symlinked to a common folder or they may have script directly
     - apt-install
@@ -90,9 +88,9 @@ sheploy --dry-run --prefix=0
 sheploy --dry-run --prefix=1
 
 # install new packages only on worker nodes
-sheploy --dry-run --host-prefix=cb-wrk3 --prefix=011
+sheploy --dry-run --host-filter=swarm-wrk --prefix=011
 
 # create a new worker host - would run full suit on one node
-rsync deploys/hosts/{example-wrk1,example-wrk3}/
-sheploy --dry-run --host-prefix=cb-wrk3
+rsync deploys/hosts/{swarm-wrk3,swarm-wrk4}/
+sheploy --dry-run --host-filter=swarm-wrk[34]
 ```
