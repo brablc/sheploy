@@ -133,6 +133,7 @@ function deploy_host() {
                 real_path="/$real_path"
                 log_info "$host|$real_path ..."
                 test -n "$DRY_RUN_FLAG" && echo "$local_path" && continue
+                ssh -T -n $host mkdir -p ${real_path%/*}
                 rsync -ai $VERBOSE_FLAG $DRY_RUN_FLAG --copy-links $local_path $host:$real_path
             done  < <(get_config_items $host files | grep -v .gitkeep)
         fi
